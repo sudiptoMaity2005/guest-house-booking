@@ -1,3 +1,4 @@
+const today = new Date().toISOString().split('T')[0];
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
@@ -77,6 +78,7 @@ export default function Home() {
                         <label className="block text-gray-700 text-sm font-bold mb-1">Check-in</label>
                         <input 
                             type="date" required
+                            min={today} // Cannot book in the past
                             className="w-full text-gray-800 p-2 border rounded"
                             value={searchDates.check_in}
                             onChange={(e) => setSearchDates({...searchDates, check_in: e.target.value})}
@@ -86,6 +88,8 @@ export default function Home() {
                         <label className="block text-gray-700 text-sm font-bold mb-1">Check-out</label>
                         <input 
                             type="date" required
+                            // Min check-out must be at least the check-in date
+                            min={searchDates.check_in || today} 
                             className="w-full text-gray-800 p-2 border rounded"
                             value={searchDates.check_out}
                             onChange={(e) => setSearchDates({...searchDates, check_out: e.target.value})}
