@@ -40,16 +40,17 @@ export default function Home() {
 
     const handleBook = async (e) => {
         e.preventDefault();
-        
-        // Check if user is logged in before allowing booking
         if (!localStorage.getItem('token')) {
-            alert("Please log in to book a room.");
+            alert("Please log in to book or waitlist a room.");
             navigate('/login');
             return;
         }
 
         try {
-            const response = await API.post('/bookings', {
+            // DYNAMIC ROUTING: Choose endpoint based on room status
+            const endpoint = selectedRoom.status === 'occupied' ? '/bookings/waitlist' : '/bookings';
+            
+            const response = await API.post(endpoint, {
                 room_id: selectedRoom.id,
                 check_in: searchDates.check_in,
                 check_out: searchDates.check_out,
@@ -57,12 +58,15 @@ export default function Home() {
                 purpose_of_visit: bookingDetails.purpose_of_visit
             });
             
-            // This alert will dynamically say "Booked!" or "Waitlisted!" based on backend logic
             alert(response.data.message); 
-            setSelectedRoom(null); // Close modal
-            navigate('/dashboard'); // Take them to see their new booking
+            setSelectedRoom(null);
+            
+            // Only redirect to dashboard if it was an actual booking, otherwise stay on home
+            if (selectedRoom.status !== 'occupied') {
+                navigate('/dashboard'); 
+            }
         } catch (err) {
-            alert(err.response?.data?.message || 'Error creating booking');
+            alert(err.response?.data?.message || 'Error processing request');
         }
     };
 
@@ -123,7 +127,8 @@ export default function Home() {
                         </div>
                         <p className="text-gray-600 text-sm mb-4 h-10">{room.description}</p>
                         <p className="text-xs text-gray-500 mb-4"><span className="font-semibold">Facilities:</span> {room.facilities}</p>
-                        
+                        <p className={`text-xs font-bold mb-4 ${room.status === 'occupied' ? 'text-orange-500' : 'text-green-500'}`}>System Status: {room.status ? room.status.toUpperCase() : 'UNKNOWN'}</p>
+
                         <button 
                             onClick={() => searched ? setSelectedRoom(room) : alert('Please select check-in and check-out dates first!')}
                             className={`w-full py-2 rounded font-bold transition ${searched ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
