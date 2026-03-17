@@ -1,12 +1,13 @@
-const today = new Date().toISOString().split('T')[0];
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
+const today = new Date().toISOString().split('T')[0];
 
 export default function Home() {
     const [rooms, setRooms] = useState([]);
     const [searchDates, setSearchDates] = useState({ check_in: '', check_out: '' });
     const [searched, setSearched] = useState(false);
+    const [isBooking, setIsBooking] = useState(false);
     
     // Modal State
     const [selectedRoom, setSelectedRoom] = useState(null);
@@ -41,15 +42,17 @@ export default function Home() {
     const handleBook = async (e) => {
         e.preventDefault();
         if (!localStorage.getItem('token')) {
-            alert("Please log in to book or waitlist a room.");
+            alert("Please log in to book a room.");
             navigate('/login');
             return;
         }
 
+        // 1. FREEZE THE BUTTON
+        setIsBooking(true);
+
         try {
-            // DYNAMIC ROUTING: Choose endpoint based on room status
             const endpoint = selectedRoom.status === 'occupied' ? '/bookings/waitlist' : '/bookings';
-            
+        
             const response = await API.post(endpoint, {
                 room_id: selectedRoom.id,
                 check_in: searchDates.check_in,
@@ -57,16 +60,17 @@ export default function Home() {
                 num_visitors: bookingDetails.num_visitors,
                 purpose_of_visit: bookingDetails.purpose_of_visit
             });
-            
+        
             alert(response.data.message); 
-            setSelectedRoom(null);
-            
-            // Only redirect to dashboard if it was an actual booking, otherwise stay on home
+            setSelectedRoom(null); 
             if (selectedRoom.status !== 'occupied') {
                 navigate('/dashboard'); 
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Error processing request');
+        } finally {
+            // 2. UNFREEZE THE BUTTON WHEN DONE
+            setIsBooking(false);
         }
     };
 
@@ -169,9 +173,16 @@ export default function Home() {
                                 <button type="button" onClick={() => setSelectedRoom(null)} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded">
                                     Cancel
                                 </button>
-                                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">
-                                    Confirm
-                                </button>
+                                <button 
+                                    type="submit" 
+                                    disabled={isBooking}
+                                    className={`flex-1 text-white font-bold py-2 rounded transition ${
+                                        isBooking ? 'bg-gray-400 cursor-not-allowed' : 
+                                        selectedRoom?.status === 'occupied' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
+                                >
+                                    {isBooking ? 'Processing...' : (selectedRoom?.status === 'occupied' ? 'Confirm Waitlist' : 'Confirm Booking')}
+                                </button>                                
                             </div>
                         </form>
                     </div>
