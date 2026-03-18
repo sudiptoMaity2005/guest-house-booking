@@ -97,7 +97,7 @@ const cancelBooking = async (req, res) => {
 
         const { room_id, check_in, check_out } = originalBooking.rows[0];
 
-        // SOFT DELETE
+        // 1. SOFT DELETE: Free up the slot by changing status to CANCELLED
         await pool.query("UPDATE bookings SET status = 'CANCELLED' WHERE id = $1", [id]);
 
         // Get info for the cancellation email
@@ -112,14 +112,23 @@ const cancelBooking = async (req, res) => {
              <p>Your booking for Room ${roomInfo.rows[0].room_number} (${check_in} to ${check_out}) has been cancelled successfully.</p>`
         );
 
-        // Auto-Promote Logic
+        // 2. THE MASTER FIX: Strict Auto-Promote Logic
+        // We find the first person on the waitlist who has ZERO overlaps with ANY currently 'CONFIRMED' booking
         const nextInLine = await pool.query(
-            `SELECT * FROM waiting_list 
-             WHERE room_id = $1 AND check_in < $3 AND check_out > $2 
-             ORDER BY priority ASC LIMIT 1`,
-            [room_id, check_in, check_out]
+            `SELECT * FROM waiting_list w
+             WHERE w.room_id = $1 
+             AND NOT EXISTS (
+                 SELECT 1 FROM bookings b 
+                 WHERE b.room_id = w.room_id 
+                 AND b.status = 'CONFIRMED'
+                 AND b.check_in < w.check_out 
+                 AND b.check_out > w.check_in
+             )
+             ORDER BY w.id ASC LIMIT 1`,
+            [room_id]
         );
 
+        // 3. Promote if a valid candidate is found
         if (nextInLine.rows.length > 0) {
             const person = nextInLine.rows[0];
             
@@ -130,7 +139,7 @@ const cancelBooking = async (req, res) => {
 
             await pool.query("DELETE FROM waiting_list WHERE id = $1", [person.id]);
 
-            // SEND PROMOTION EMAIL TO THE LUCKY WAITLIST USER!
+            // SEND PROMOTION EMAIL
             const luckyUser = await pool.query("SELECT name, email FROM users WHERE id = $1", [person.user_id]);
             await sendMail(
                 luckyUser.rows[0].email,

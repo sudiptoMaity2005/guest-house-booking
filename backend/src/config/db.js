@@ -1,20 +1,17 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Check if we are running locally by looking at the URL
+const isLocal = process.env.DATABASE_URL.includes('localhost');
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false // Required for cloud databases like Neon or Render
-    }
+    // If local, turn SSL off. If cloud, turn SSL on.
+    ssl: isLocal ? false : { rejectUnauthorized: false }
 });
 
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error('Cloud Database connection failed:', err.stack);
-    } else {
-        console.log('Successfully connected to Cloud PostgreSQL!');
-        release();
-    }
-});
+pool.connect()
+    .then(() => console.log("Connected to Database!"))
+    .catch(err => console.error("Local Database connection failed:", err.message));
 
 module.exports = pool;
