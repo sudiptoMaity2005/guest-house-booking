@@ -9,32 +9,17 @@ import Dashboard from './pages/Dashboard';
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen relative bg-gray-950 text-gray-900 font-sans">
+      <div className="min-h-screen bg-[#F5F5F0] text-[#1A1A1A] font-body">
         <Toaster position="top-center" reverseOrder={false} />
-        
-        {/* --- THE PROMINENT DARK LUXURY BACKGROUND --- */}
-        <div className="fixed inset-0 z-0 pointer-events-none bg-black">
-            {/* The image - Opacity cranked up to 60% */}
-            <div 
-                className="absolute inset-0 bg-cover bg-center opacity-60" 
-                style={{ backgroundImage: "url('/app-bg.jpg')" }}
-            ></div>
-            {/* Dark glassmorphism overlay to ensure text remains readable */}
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-950/80 via-gray-900/30 to-black/80 backdrop-blur-[3px]"></div>
-        </div>
-
-        <div className="relative z-10">
-            <Navbar />
-            <main className="container mx-auto px-4 py-8">
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-              </Routes>
-            </main>
-        </div>
-        
+        <Navbar />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+          </Routes>
+        </main>
       </div>
     </Router>
   );

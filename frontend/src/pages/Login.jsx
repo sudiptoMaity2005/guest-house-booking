@@ -12,86 +12,77 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
-        
         try {
             const res = await API.post('/auth/login', { email, password });
             localStorage.setItem('token', res.data.token);
-            
-            // --- THE DYNAMIC FIX ---
-            // Try to get the name from the backend. If it's not there, extract it from the email!
-            const dynamicName = res.data.user?.name || email.split('@')[0]; 
-            
-            localStorage.setItem('user', JSON.stringify({ 
-                name: dynamicName, 
-                email: email 
-            }));
-            // -----------------------
-
+            const dynamicName = res.data.user?.name || email.split('@')[0];
+            localStorage.setItem('user', JSON.stringify({ name: dynamicName, email }));
             toast.success('Welcome back!');
             navigate('/dashboard');
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Invalid credentials');
-        } finally {
-            setIsSubmitting(false);
-        }
+        } catch (err) { toast.error(err.response?.data?.message || 'Invalid credentials'); }
+        finally { setIsSubmitting(false); }
     };
 
     return (
-        <div className="flex justify-center items-center min-h-[80vh] px-4">
-            <div className="bg-white rounded-3xl shadow-2xl flex flex-col md:flex-row w-full max-w-4xl overflow-hidden border border-gray-100">
-                
-                {/* Left Side: The Framed Atmospheric Image */}
-                <div className="md:w-1/2 bg-gray-50 flex items-center justify-center p-8 hidden md:flex border-r border-gray-100">
-                    <div className="w-full h-full relative rounded-3xl overflow-hidden shadow-inner border border-gray-100 group">
-                        <div 
-                            className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-105" 
-                            style={{ backgroundImage: "url('/image.png')" }}
-                        ></div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-gray-950/80 via-gray-950/30 to-transparent z-10"></div>
-                        <div className="relative z-20 flex flex-col justify-end h-full p-10 text-white">
-                            <h2 className="text-4xl font-extrabold mb-3 tracking-tight leading-tight">Welcome Back.</h2>
-                            <p className="text-gray-200 font-medium leading-relaxed max-w-sm">Access your dashboard, manage your bookings, and find your next perfect stay.</p>
+        <div className="min-h-[calc(100vh-56px)] relative flex items-center">
+            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/image.png')" }}></div>
+            <div className="absolute inset-0 bg-forest/70"></div>
+
+            <div className="relative z-10 w-full px-6 lg:px-16 xl:px-24 py-16 flex flex-col lg:flex-row items-center lg:items-stretch justify-between gap-16">
+
+                <div className="flex-1 flex flex-col justify-center max-w-xl">
+                    <p className="text-gold text-[11px] font-label font-bold uppercase tracking-[0.25em] mb-8">Welcome Back</p>
+                    <h1 className="font-serif text-white text-5xl lg:text-7xl leading-[1.08] mb-8">
+                        Sign in to <br />your account.
+                    </h1>
+                    <p className="text-white/40 text-base leading-relaxed max-w-sm mb-12">
+                        Access your dashboard, manage reservations, and discover new rooms.
+                    </p>
+
+                    <div className="flex gap-10">
+                        <div>
+                            <p className="font-serif text-white text-3xl leading-none">2k+</p>
+                            <p className="text-white/30 text-[10px] font-label font-bold uppercase tracking-[0.15em] mt-1.5">Happy Guests</p>
+                        </div>
+                        <div>
+                            <p className="font-serif text-white text-3xl leading-none">4.8</p>
+                            <p className="text-white/30 text-[10px] font-label font-bold uppercase tracking-[0.15em] mt-1.5">Avg. Rating</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Side: The Clean Form (With High-Contrast Fields) */}
-                <div className="md:w-1/2 p-10 md:p-14 flex flex-col justify-center bg-white">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-2">Sign In</h2>
-                    <p className="text-gray-500 mb-8 font-medium">Enter your details to proceed.</p>
+                <div className="w-full max-w-md bg-paper rounded-2xl shadow-overlay p-10 lg:p-12">
+                    <div className="flex items-center justify-between mb-10">
+                        <div>
+                            <p className="text-[11px] font-label font-bold text-stone uppercase tracking-[0.15em] mb-1">Account</p>
+                            <h2 className="font-serif text-ink text-3xl">Sign In</h2>
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-forest flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                    </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5">Email Address</label>
-                            <input
-                                type="email" required
-                                className="w-full p-4 border-2 border-blue-200 rounded-2xl focus:ring-4 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white text-gray-950 shadow-inner placeholder:text-gray-300"
-                                value={email} onChange={(e) => setEmail(e.target.value)}
-                                placeholder="your.email@gmail.com"
-                            />
+                            <label className="block text-[11px] font-label font-bold text-stone uppercase tracking-[0.12em] mb-2">Email</label>
+                            <input type="email" required className="w-full px-4 py-3.5 rounded-lg bg-clay border border-rule text-ink font-sans text-sm font-medium outline-none focus:ring-2 focus:ring-forest/30 focus:border-forest transition-all placeholder:text-stone/40" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5">Password</label>
-                            <input
-                                type="password" required
-                                className="w-full p-4 border-2 border-blue-200 rounded-2xl focus:ring-4 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white text-gray-950 shadow-inner placeholder:text-gray-300"
-                                value={password} onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                            />
+                            <label className="block text-[11px] font-label font-bold text-stone uppercase tracking-[0.12em] mb-2">Password</label>
+                            <input type="password" required className="w-full px-4 py-3.5 rounded-lg bg-clay border border-rule text-ink font-sans text-sm font-medium outline-none focus:ring-2 focus:ring-forest/30 focus:border-forest transition-all placeholder:text-stone/40" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
                         </div>
-                        
-                        <button
-                            type="submit" disabled={isSubmitting}
-                            className={`w-full py-4 mt-5 rounded-2xl font-bold text-white transition-all shadow-md transform hover:-translate-y-1 ${
-                                isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg'
-                            }`}
-                        >
-                            {isSubmitting ? 'Signing in...' : 'Sign In'}
+
+                        <button type="submit" disabled={isSubmitting} className={`w-full py-3.5 rounded-lg font-label text-[13px] font-bold uppercase tracking-[0.08em] text-white transition-colors shadow-card mt-2 ${isSubmitting ? 'bg-stone cursor-not-allowed' : 'bg-forest hover:bg-forest/90'}`}>
+                            {isSubmitting ? 'Signing in…' : 'Continue'}
                         </button>
                     </form>
 
-                    <p className="mt-8 text-center text-sm text-gray-600">
-                        Don't have an account? <Link to="/register" className="text-blue-600 font-bold hover:text-blue-700 hover:underline transition-colors">Register here</Link>
+                    <div className="h-px bg-rule my-8"></div>
+
+                    <p className="text-center text-sm text-stone">
+                        New here? <Link to="/register" className="text-forest font-semibold hover:underline underline-offset-4">Create an account</Link>
                     </p>
                 </div>
             </div>
