@@ -27,7 +27,8 @@ export default function Navbar() {
     const isActive = (path) => location.pathname === path;
 
     return (
-        <nav className="sticky top-0 z-50 bg-gray-900/60 backdrop-blur-lg border-b border-gray-800 shadow-sm transition-all">
+        // The Glassmorphism Magic: bg-white/80, backdrop-blur-md, and light border
+        <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm transition-all">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-20">
                     
@@ -38,22 +39,22 @@ export default function Navbar() {
                         <div className="relative">
                             <button 
                                 onClick={() => { setIsNavOpen(!isNavOpen); setIsProfileOpen(false); }}
-                                className="p-2 text-gray-300 hover:text-white hover:bg-gray-800/80 rounded-lg transition-all focus:outline-none"
+                                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all focus:outline-none"
                             >
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                                 </svg>
                             </button>
 
-                            {/* Nav Dropdown (Left aligned) */}
+                            {/* Nav Dropdown (Left aligned, Light Theme) */}
                             {isNavOpen && (
                                 <>
                                     <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsNavOpen(false)}></div>
-                                    <div className="absolute left-0 mt-4 w-56 bg-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden z-50 animate-fadeIn">
+                                    <div className="absolute left-0 mt-4 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fadeIn">
                                         <div className="py-2">
-                                            <Link to="/" onClick={() => setIsNavOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors ${isActive('/') ? 'text-blue-400' : 'text-gray-300'}`}>Home</Link>
+                                            <Link to="/" onClick={() => setIsNavOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-50 transition-colors ${isActive('/') ? 'text-blue-600' : 'text-gray-700'}`}>Home</Link>
                                             {isAuthenticated && (
-                                                <Link to="/dashboard" onClick={() => setIsNavOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors ${isActive('/dashboard') ? 'text-blue-400' : 'text-gray-300'}`}>Bookings</Link>
+                                                <Link to="/dashboard" onClick={() => setIsNavOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-50 transition-colors ${isActive('/dashboard') ? 'text-blue-600' : 'text-gray-700'}`}>My Trips</Link>
                                             )}
                                         </div>
                                     </div>
@@ -63,8 +64,8 @@ export default function Navbar() {
 
                         {/* 2. The Logo */}
                         <div className="flex-shrink-0 flex items-center cursor-pointer transform transition-transform hover:scale-105" onClick={() => navigate('/')}>
-                            <span className="text-2xl font-extrabold tracking-tighter text-white">
-                                Drey<span className="text-blue-500">Go</span>
+                            <span className="text-2xl font-extrabold tracking-tighter text-gray-950">
+                                Drey<span className="text-blue-600">Go</span>
                             </span>
                         </div>
                     </div>
@@ -73,34 +74,34 @@ export default function Navbar() {
                     <div className="relative flex items-center">
                         <button 
                             onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNavOpen(false); }}
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow-lg border border-gray-700 hover:scale-105 transition-transform focus:outline-none"
-                            style={{ background: isAuthenticated ? 'linear-gradient(to bottom right, #2563eb, #1e40af)' : '#374151' }}
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow-md border-2 border-white hover:scale-105 transition-transform focus:outline-none"
+                            style={{ background: isAuthenticated ? '#2563eb' : '#9ca3af' }} // Blue for auth, gray for guest
                         >
                             {isAuthenticated ? avatarLetter : (
-                                <svg className="w-5 h-5 mt-1 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-5 h-5 mt-1 text-white" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                                 </svg>
                             )}
                         </button>
 
-                        {/* Profile Dropdown (Right aligned) */}
+                        {/* Profile Dropdown (Right aligned, Light Theme) */}
                         {isProfileOpen && (
                             <>
                                 <div className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileOpen(false)}></div>
-                                <div className="absolute right-0 top-14 w-64 bg-gray-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden z-50 animate-fadeIn">
+                                <div className="absolute right-0 top-14 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fadeIn">
                                     <div className="py-2">
                                         {isAuthenticated ? (
                                             <>
-                                                <div className="px-5 py-3 border-b border-gray-800 bg-gray-800/50 cursor-default">
-                                                    <p className="text-sm font-bold text-white">{userProfile?.name || 'Guest'}</p>
-                                                    <p className="text-xs text-gray-400 truncate">{userProfile?.email}</p>
+                                                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 cursor-default">
+                                                    <p className="text-sm font-bold text-gray-900">{userProfile?.name || 'Guest'}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{userProfile?.email}</p>
                                                 </div>
-                                                <button onClick={handleLogout} className="w-full text-left px-5 py-3 text-sm font-semibold text-red-400 hover:bg-gray-800 transition-colors">Log Out</button>
+                                                <button onClick={handleLogout} className="w-full text-left px-5 py-3 text-sm font-semibold text-red-600 hover:bg-gray-50 transition-colors">Log Out</button>
                                             </>
                                         ) : (
                                             <>
-                                                <Link to="/login" onClick={() => setIsProfileOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors ${isActive('/login') ? 'text-blue-400' : 'text-gray-300'}`}>Log In</Link>
-                                                <Link to="/register" onClick={() => setIsProfileOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-800 transition-colors ${isActive('/register') ? 'text-blue-400' : 'text-gray-300'}`}>Register</Link>
+                                                <Link to="/login" onClick={() => setIsProfileOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-50 transition-colors ${isActive('/login') ? 'text-blue-600' : 'text-gray-700'}`}>Log In</Link>
+                                                <Link to="/register" onClick={() => setIsProfileOpen(false)} className={`block px-5 py-3 text-sm font-semibold hover:bg-gray-50 transition-colors ${isActive('/register') ? 'text-blue-600' : 'text-gray-700'}`}>Register</Link>
                                             </>
                                         )}
                                     </div>

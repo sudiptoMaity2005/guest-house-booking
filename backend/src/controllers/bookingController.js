@@ -39,7 +39,7 @@ const createBooking = async (req, res) => {
         const overlapCheck = await pool.query(`
             SELECT id FROM bookings 
             WHERE room_id = $1 AND status = 'CONFIRMED'
-            AND (check_in < $3 AND check_out > $2)
+            AND (check_in::DATE, check_out::DATE) OVERLAPS ($2::DATE, $3::DATE)
         `, [room_id, check_in, check_out]);
 
         if (overlapCheck.rows.length > 0) {
@@ -85,73 +85,84 @@ const cancelBooking = async (req, res) => {
     const user_id = req.user.id;
     
     try {
+        // 1. FIRST, check if it's a Confirmed booking in the main table
         const originalBooking = await pool.query(
             "SELECT room_id, check_in, check_out, status FROM bookings WHERE id = $1", 
             [id]
         );
 
-        if (originalBooking.rows.length === 0) return res.status(404).json({message: "Booking not found"});
-        if (originalBooking.rows[0].status === 'CANCELLED') {
-            return res.status(400).json({ message: "Booking is already cancelled." });
-        }
+        if (originalBooking.rows.length > 0) {
+            if (originalBooking.rows[0].status === 'CANCELLED') {
+                return res.status(400).json({ message: "Booking is already cancelled." });
+            }
 
-        const { room_id, check_in, check_out } = originalBooking.rows[0];
+            const { room_id, check_in, check_out } = originalBooking.rows[0];
 
-        // 1. SOFT DELETE: Free up the slot by changing status to CANCELLED
-        await pool.query("UPDATE bookings SET status = 'CANCELLED' WHERE id = $1", [id]);
+            // SOFT DELETE: Free up the slot by changing status to CANCELLED
+            await pool.query("UPDATE bookings SET status = 'CANCELLED' WHERE id = $1", [id]);
 
-        // Get info for the cancellation email
-        const cancellingUser = await pool.query("SELECT name, email FROM users WHERE id = $1", [user_id]);
-        const roomInfo = await pool.query("SELECT room_number FROM rooms WHERE id = $1", [room_id]);
+            // Get info for the emails
+            const cancellingUser = await pool.query("SELECT name, email FROM users WHERE id = $1", [user_id]);
+            const roomInfo = await pool.query("SELECT room_number FROM rooms WHERE id = $1", [room_id]);
 
-        // SEND CANCELLATION EMAIL
-        await sendMail(
-            cancellingUser.rows[0].email,
-            "Booking Cancelled - GuestHouseBooker",
-            `<p>Hi ${cancellingUser.rows[0].name},</p>
-             <p>Your booking for Room ${roomInfo.rows[0].room_number} (${check_in} to ${check_out}) has been cancelled successfully.</p>`
-        );
-
-        // 2. THE MASTER FIX: Strict Auto-Promote Logic
-        // We find the first person on the waitlist who has ZERO overlaps with ANY currently 'CONFIRMED' booking
-        const nextInLine = await pool.query(
-            `SELECT * FROM waiting_list w
-             WHERE w.room_id = $1 
-             AND NOT EXISTS (
-                 SELECT 1 FROM bookings b 
-                 WHERE b.room_id = w.room_id 
-                 AND b.status = 'CONFIRMED'
-                 AND b.check_in < w.check_out 
-                 AND b.check_out > w.check_in
-             )
-             ORDER BY w.id ASC LIMIT 1`,
-            [room_id]
-        );
-
-        // 3. Promote if a valid candidate is found
-        if (nextInLine.rows.length > 0) {
-            const person = nextInLine.rows[0];
-            
-            await pool.query(
-                "INSERT INTO bookings (user_id, room_id, check_in, check_out, status) VALUES ($1, $2, $3, $4, 'CONFIRMED')",
-                [person.user_id, person.room_id, person.check_in, person.check_out]
-            );
-
-            await pool.query("DELETE FROM waiting_list WHERE id = $1", [person.id]);
-
-            // SEND PROMOTION EMAIL
-            const luckyUser = await pool.query("SELECT name, email FROM users WHERE id = $1", [person.user_id]);
+            // SEND CANCELLATION EMAIL
             await sendMail(
-                luckyUser.rows[0].email,
-                "Great News! You're off the waitlist! 🎉",
-                `<h2>Hello ${luckyUser.rows[0].name}!</h2>
-                 <p>A spot opened up and you have been automatically promoted from the waitlist for <b>Room ${roomInfo.rows[0].room_number}</b>!</p>
-                 <p>Your dates: ${person.check_in} to ${person.check_out}</p>
-                 <p>Please log in to your dashboard to view your confirmed booking.</p>`
+                cancellingUser.rows[0].email,
+                "Booking Cancelled - GuestHouseBooker",
+                `<p>Hi ${cancellingUser.rows[0].name},</p>
+                 <p>Your booking for Room ${roomInfo.rows[0].room_number} (${check_in} to ${check_out}) has been cancelled successfully.</p>`
             );
+
+            // THE MASTER FIX: Strict Auto-Promote Logic
+            const nextInLine = await pool.query(
+                `SELECT * FROM waiting_list w
+                 WHERE w.room_id = $1 
+                 AND NOT EXISTS (
+                     SELECT 1 FROM bookings b 
+                     WHERE b.room_id = w.room_id 
+                     AND b.status = 'CONFIRMED'
+                     /* Postgres native calendar math: strips timezones and calculates strict overlaps */
+                     AND (b.check_in::DATE, b.check_out::DATE) OVERLAPS (w.check_in::DATE, w.check_out::DATE)
+                 )
+                 ORDER BY w.id ASC LIMIT 1`,
+                [room_id]
+            );
+
+            // Promote if a valid candidate is found
+            if (nextInLine.rows.length > 0) {
+                const person = nextInLine.rows[0];
+                
+                await pool.query(
+                    `INSERT INTO bookings 
+                    (user_id, room_id, check_in, check_out, num_visitors, purpose_of_visit, status) 
+                    VALUES ($1, $2, $3, $4, $5, $6, 'CONFIRMED')`,
+                    [person.user_id, person.room_id, person.check_in, person.check_out, person.num_visitors || 1, person.purpose_of_visit || 'Auto-Promote']
+                );
+
+                await pool.query("DELETE FROM waiting_list WHERE id = $1", [person.id]);
+
+                const luckyUser = await pool.query("SELECT name, email FROM users WHERE id = $1", [person.user_id]);
+                await sendMail(luckyUser.rows[0].email, "Great News! You're off the waitlist! 🎉", `<p>A spot opened up! You have been promoted for Room ${roomInfo.rows[0].room_number}.</p>`);
+            }
+
+            return res.json({ message: "Booking cancelled successfully." });
         }
 
-        res.json({ message: "Booking cancelled successfully." });
+        // 2. IF NOT IN BOOKINGS, check if it's a Waitlist request
+        const waitlistBooking = await pool.query(
+            "SELECT id FROM waiting_list WHERE id = $1", 
+            [id]
+        );
+
+        if (waitlistBooking.rows.length > 0) {
+            // HARD DELETE: Remove them from the waiting list entirely
+            await pool.query("DELETE FROM waiting_list WHERE id = $1", [id]);
+            return res.json({ message: "Removed from waitlist successfully." });
+        }
+
+        // 3. IF NEITHER, it actually doesn't exist
+        return res.status(404).json({message: "Booking not found"});
+
     } catch (err) {
         console.error("Cancel Error:", err.message); 
         res.status(500).json({ message: "Server error during cancellation" });
@@ -162,22 +173,36 @@ const getUserBookings = async (req, res) => {
     try {
         const userId = req.user.id;
 
+        // 1. Fetch Confirmed/Cancelled bookings from the main table
         const bookingsRes = await pool.query(`
-            SELECT b.id, b.room_id, TO_CHAR(b.check_in, 'YYYY-MM-DD') as check_in, TO_CHAR(b.check_out, 'YYYY-MM-DD') as check_out, b.status, r.room_number, r.room_type 
+            SELECT 
+                b.id, b.room_id, b.status, b.num_visitors, b.purpose_of_visit,
+                TO_CHAR(b.check_in, 'YYYY-MM-DD') as check_in, 
+                TO_CHAR(b.check_out, 'YYYY-MM-DD') as check_out, 
+                r.room_number, r.room_type, r.location, r.price_per_night, r.thumbnail_url 
             FROM bookings b
             JOIN rooms r ON b.room_id = r.id
             WHERE b.user_id = $1
         `, [userId]);
 
+        // 2. Fetch Waitlisted entries from your waiting_list table
+        // FIXED: Added the 'w' alias and joined properly to avoid the FROM-clause error
         const waitlistRes = await pool.query(`
-            SELECT 'W-' || w.id AS id, w.room_id, TO_CHAR(w.check_in, 'YYYY-MM-DD') as check_in, TO_CHAR(w.check_out, 'YYYY-MM-DD') as check_out, 'WAITLISTED' AS status, r.room_number, r.room_type 
+            SELECT 
+                w.id, w.room_id, 'WAITLISTED' as status, 
+                TO_CHAR(w.check_in, 'YYYY-MM-DD') as check_in, 
+                TO_CHAR(w.check_out, 'YYYY-MM-DD') as check_out, 
+                r.room_number, r.room_type, r.location, r.price_per_night, r.thumbnail_url 
             FROM waiting_list w
             JOIN rooms r ON w.room_id = r.id
             WHERE w.user_id = $1
         `, [userId]);
 
+        // 3. Combine them exactly as you had it, preserving your brick-by-brick logic
         const allBookings = [...bookingsRes.rows, ...waitlistRes.rows];
-        allBookings.sort((a, b) => new Date(b.check_in) - new Date(a.check_in));
+        
+        // Sort by check-in date so the UI numbering stays consistent
+        allBookings.sort((a, b) => new Date(a.check_in) - new Date(b.check_in));
 
         res.json(allBookings);
     } catch (err) {
@@ -216,4 +241,27 @@ const joinWaitlist = async (req, res) => {
     }
 };
 
-module.exports = { createBooking, cancelBooking, getUserBookings, joinWaitlist };
+const checkAvailability = async (req, res) => {
+    try {
+        const { room_id, check_in, check_out } = req.body;
+        
+        // If dates aren't fully selected yet, just assume available to keep UI clean
+        if (!check_in || !check_out) return res.json({ available: true });
+
+        // Check if there are any confirmed bookings that overlap with these dates
+        const overlapCheck = await pool.query(`
+            SELECT id FROM bookings 
+            WHERE room_id = $1 AND status = 'CONFIRMED'
+            AND (check_in::DATE, check_out::DATE) OVERLAPS ($2::DATE, $3::DATE)
+        `, [room_id, check_in, check_out]);
+
+        // If rows > 0, there is a clash (available = false)
+        res.json({ available: overlapCheck.rows.length === 0 });
+
+    } catch (err) {
+        console.error("Availability Check Error:", err.message);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+module.exports = { createBooking, cancelBooking, getUserBookings, joinWaitlist, checkAvailability };

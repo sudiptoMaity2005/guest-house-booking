@@ -5,12 +5,10 @@ const getRooms = async (req, res) => {
 
     try {
         if (!check_in || !check_out) {
-            // Default view: just show all rooms when no dates are picked
             const allRooms = await pool.query("SELECT * FROM rooms ORDER BY room_number ASC");
             return res.json(allRooms.rows);
         }
 
-        // The Smart Query: Returns ALL rooms, but flags them as 'occupied' or 'available'
         const query = `
             SELECT r.*,
             CASE WHEN EXISTS (
@@ -31,4 +29,56 @@ const getRooms = async (req, res) => {
     }
 };
 
-module.exports = { getRooms };
+// --- THE NEW FUNCTION ---
+const getRoomById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM rooms WHERE id = $1', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Room not found" });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Error fetching room details:", err);
+        res.status(500).json({ error: "Failed to fetch room details" });
+    }
+};
+
+const uploadRoomImage = async (req, res) => {
+    try {
+        const roomId = req.params.id;
+        
+        if (!req.file) {
+            return res.status(400).json({ message: "No image file provided." });
+        }
+        
+        const imageUrl = req.file.path; 
+
+        const updateQuery = `
+            UPDATE rooms 
+            SET thumbnail_url = $1 
+            WHERE id = $2 
+            RETURNING *;
+        `;
+        
+        const result = await pool.query(updateQuery, [imageUrl, roomId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Room not found." });
+        }
+
+        res.json({ 
+            message: "Image successfully uploaded to Cloudinary and saved to database!", 
+            room: result.rows[0] 
+        });
+
+    } catch (err) {
+        console.error("Upload error:", err);
+        res.status(500).json({ message: "Server error during image upload" });
+    }
+};
+
+// Make sure it is exported here!
+module.exports = { getRooms, getRoomById, uploadRoomImage };

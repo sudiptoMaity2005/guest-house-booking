@@ -6,9 +6,9 @@ import API from '../api/axios';
 export default function Dashboard() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
-    
-    // Default safe state
-    const [userProfile, setUserProfile] = useState({ name: 'Guest User', email: '' });
+    const [selectedBooking, setSelectedBooking] = useState(null);
+    const [selectedBookingIndex, setSelectedBookingIndex] = useState(null); 
+    const [cancellingId, setCancellingId] = useState(null);
     
     const navigate = useNavigate();
 
@@ -17,28 +17,16 @@ export default function Dashboard() {
             navigate('/login');
             return;
         }
-
-        // --- THE CRASH-PROOF FIX ---
-        try {
-            const rawUser = localStorage.getItem('user');
-            if (rawUser) {
-                const storedUser = JSON.parse(rawUser);
-                // Only update if it actually has a name to prevent the charAt(0) crash
-                if (storedUser && storedUser.name) {
-                    setUserProfile(storedUser);
-                }
-            }
-        } catch (e) {
-            console.error("Safe catch: No valid user data found in storage.");
-        }
-
         fetchBookings();
     }, [navigate]);
 
     const fetchBookings = async () => {
         try {
             const res = await API.get('/bookings/my-bookings');
-            setBookings(res.data);
+            
+            // Sort DESCENDING: Newest check-in dates sit at the top, pushing older ones down
+            const sorted = res.data.sort((a, b) => new Date(b.check_in) - new Date(a.check_in));
+            setBookings(sorted);
         } catch (err) {
             toast.error('Error fetching your bookings');
         } finally {
@@ -46,105 +34,157 @@ export default function Dashboard() {
         }
     };
 
-    const handleCancel = async (id, isWaitlist) => {
-        if (!window.confirm("Are you sure you want to cancel this?")) return;
+    const handleCancel = async (id) => {
+        if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+        
+        setCancellingId(id); 
         
         try {
-            if (isWaitlist) {
-                await API.put(`/bookings/${id}/cancel`);
-            } else {
-                await API.delete(`/bookings/${id}`);
-            }
+            await API.put(`/bookings/${id}/cancel`);
             toast.success("Cancelled successfully!");
-            fetchBookings(); // Refresh the list
+            setSelectedBooking(null);
+            await fetchBookings(); 
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Error cancelling booking');
+            toast.error(err.response?.data?.message || 'Error cancelling');
+        } finally {
+            setCancellingId(null); 
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-        );
-    }
+    const getPricing = (checkIn, checkOut, price) => {
+        const start = new Date(checkIn);
+        const end = new Date(checkOut);
+        const nights = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) || 1;
+        const perNight = Number(price) || 0;
+        return { nights, total: nights * perNight };
+    };
 
-    // Safety fallback for the Avatar to guarantee it never crashes again
-    const avatarLetter = userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : 'G';
+    if (loading) return <div className="flex justify-center mt-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
     return (
-        <div className="max-w-6xl mx-auto mt-8 px-4">
+        <div className="max-w-6xl mx-auto mt-8 px-4 pb-20">
+            <h2 className="text-3xl font-black text-gray-900 mb-10">Your Trips</h2>
 
-            {/* Header Section */}
-            <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white tracking-tight">Bookings</h2>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {bookings.map((booking, index) => {
+                    // --- THE MASTER FIX: Calculate the true historical trip number ---
+                    const tripNumber = bookings.length - index;
 
-            {bookings.length === 0 ? (
-                /* Beautiful Empty State */
-                <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-gray-100 flex flex-col items-center justify-center min-h-[300px]">
-                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-                        <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">No bookings yet</h3>
-                    <p className="text-gray-500 mb-6 max-w-sm">It looks like you haven't booked any rooms yet. Start exploring to find your perfect stay.</p>
-                    <button 
-                        onClick={() => navigate('/')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-md transform hover:-translate-y-1"
-                    >
-                        Explore Rooms
-                    </button>
-                </div>
-            ) : (
-                /* Bookings Grid */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {bookings.map((booking) => {
-                        const isWaitlisted = booking.status === 'WAITLISTED';
-                        const isCancelled = booking.status === 'CANCELLED';
-
-                        return (
-                            <div key={booking.id} className={`relative bg-white rounded-2xl p-6 shadow-sm border ${isCancelled ? 'border-gray-200 opacity-60' : 'border-gray-100 hover:shadow-xl transition-all'}`}>
-                                
-                                <div className="absolute top-6 right-6">
-                                    <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
-                                        isWaitlisted ? 'bg-orange-100 text-orange-700' : 
-                                        isCancelled ? 'bg-gray-200 text-gray-600' : 
+                    return (
+                        <div key={booking.id} className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-xl transition-all">
+                            <div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        {/* Dynamic Trip Number applied here */}
+                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">
+                                            Trip #{tripNumber}
+                                        </p>
+                                        <h3 className="text-xl font-extrabold text-gray-900 truncate">
+                                            {booking.location || 'Premium Room'}
+                                        </h3>
+                                    </div>
+                                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest ${
+                                        booking.status === 'CANCELLED' ? 'bg-gray-100 text-gray-500' : 
+                                        booking.status === 'WAITLISTED' ? 'bg-orange-100 text-orange-700' : 
                                         'bg-green-100 text-green-700'
                                     }`}>
                                         {booking.status}
                                     </span>
                                 </div>
-
-                                <div className="mb-6">
-                                    <h3 className="text-2xl font-bold text-gray-900">Room {booking.room_number}</h3>
-                                    <span className="inline-block text-gray-500 text-sm mt-1">{booking.room_type}</span>
+                                <div className="bg-gray-50 rounded-2xl p-4 mb-6 text-sm font-bold text-gray-700">
+                                    {new Date(booking.check_in).toDateString()} - {new Date(booking.check_out).toDateString()}
                                 </div>
+                            </div>
 
-                                <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                                    <div className="flex justify-between mb-2">
-                                        <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Check-in</span>
-                                        <span className="text-sm font-semibold text-gray-900">{booking.check_in}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Check-out</span>
-                                        <span className="text-sm font-semibold text-gray-900">{booking.check_out}</span>
-                                    </div>
-                                </div>
-
-                                {!isCancelled && (
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => { 
+                                        setSelectedBooking(booking); 
+                                        // Dynamic Trip Number applied to modal here
+                                        setSelectedBookingIndex(tripNumber); 
+                                    }}
+                                    className="flex-1 bg-gray-900 text-white font-bold py-3 rounded-xl text-xs hover:bg-black"
+                                >
+                                    View Details
+                                </button>
+                                {booking.status !== 'CANCELLED' && (
                                     <button 
-                                        onClick={() => handleCancel(booking.id, isWaitlisted)}
-                                        className="w-full bg-white border-2 border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200 font-bold py-2.5 rounded-xl transition-all"
+                                        onClick={() => handleCancel(booking.id)} 
+                                        disabled={cancellingId === booking.id}
+                                        className={`flex-1 font-bold py-3 rounded-xl text-xs border transition-all ${
+                                            cancellingId === booking.id 
+                                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                                            : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-100'
+                                        }`}
                                     >
-                                        Cancel {isWaitlisted ? 'Request' : 'Booking'}
+                                        {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
                                     </button>
                                 )}
                             </div>
-                        );
-                    })}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* --- THE FIXED VIEW DETAILS MODAL --- */}
+            {selectedBooking && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setSelectedBooking(null)}></div>
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg relative z-10 overflow-hidden shadow-2xl animate-modalUp">
+                        
+                        <div className="h-44 bg-gray-200 relative">
+                            <img src={selectedBooking.thumbnail_url || 'https://via.placeholder.com/400x200'} className="w-full h-full object-cover" alt="room" />
+                            {/* Adding the Trip Number badge to the modal image for consistency */}
+                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-4 py-1.5 rounded-full shadow-sm">
+                                <span className="text-xs font-black text-gray-900 uppercase tracking-widest">Trip #{selectedBookingIndex}</span>
+                            </div>
+                        </div>
+
+                        <div className="p-8">
+                            <div className="mb-6">
+                                <h3 className="text-3xl font-black text-gray-900">{selectedBooking.location}</h3>
+                                <p className="text-gray-500 font-bold text-lg">{selectedBooking.room_type} Room</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                                    <p className="text-[10px] font-black text-blue-400 uppercase">Room Number</p>
+                                    <p className="text-xl font-black text-blue-900">#{selectedBooking.room_number || 'N/A'}</p>
+                                </div>
+                                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase">Accommodated</p>
+                                    <p className="text-xl font-black text-gray-900">{selectedBooking.num_visitors} Guest(s)</p>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-gray-100 pt-6 space-y-3">
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Breakdown</h4>
+                                {(() => {
+                                    const { nights, total } = getPricing(selectedBooking.check_in, selectedBooking.check_out, selectedBooking.price_per_night);
+                                    return (
+                                        <>
+                                            <div className="flex justify-between font-bold text-gray-600">
+                                                <span>₹{selectedBooking.price_per_night || 0} x {nights} nights</span>
+                                                <span className="text-gray-900">₹{total}</span>
+                                            </div>
+                                            <div className="flex justify-between font-bold text-gray-600">
+                                                <span>Taxes & Service Fees</span>
+                                                <span className="text-green-600">Included</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pt-4 border-t border-dashed border-gray-200">
+                                                <span className="text-lg font-black text-gray-900">Total Payment</span>
+                                                <span className="text-2xl font-black text-blue-600">₹{total}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+
+                            <button onClick={() => setSelectedBooking(null)} className="w-full mt-8 py-4 bg-gray-100 text-gray-900 font-black rounded-2xl hover:bg-gray-200 transition-all">
+                                Close Itinerary
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
