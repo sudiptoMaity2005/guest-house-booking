@@ -6,120 +6,109 @@ import API from '../api/axios';
 export default function Dashboard() {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedBooking, setSelectedBooking] = useState(null);
-    const [selectedBookingIndex, setSelectedBookingIndex] = useState(null); 
-    const [cancellingId, setCancellingId] = useState(null);
-    
+    const [userProfile, setUserProfile] = useState({ name: 'Guest User', email: '' });
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!localStorage.getItem('token')) {
-            navigate('/login');
-            return;
-        }
+        if (!localStorage.getItem('token')) { navigate('/login'); return; }
+        try {
+            const rawUser = localStorage.getItem('user');
+            if (rawUser) { const u = JSON.parse(rawUser); if (u?.name) setUserProfile(u); }
+        } catch (e) { /* safe */ }
         fetchBookings();
     }, [navigate]);
 
     const fetchBookings = async () => {
+        try { const res = await API.get('/bookings/my-bookings'); setBookings(res.data); }
+        catch { toast.error('Error fetching bookings'); }
+        finally { setLoading(false); }
+    };
+
+    const handleCancel = async (id, isWaitlist) => {
+        if (!window.confirm("Cancel this booking?")) return;
         try {
-            const res = await API.get('/bookings/my-bookings');
-            
-            // Sort DESCENDING: Newest check-in dates sit at the top, pushing older ones down
-            const sorted = res.data.sort((a, b) => new Date(b.check_in) - new Date(a.check_in));
-            setBookings(sorted);
-        } catch (err) {
-            toast.error('Error fetching your bookings');
-        } finally {
-            setLoading(false);
-        }
+            if (isWaitlist) await API.put(`/bookings/${id}/cancel`);
+            else await API.delete(`/bookings/${id}`);
+            toast.success("Cancelled!");
+            fetchBookings();
+        } catch (err) { toast.error(err.response?.data?.message || 'Error'); }
     };
 
-    const handleCancel = async (id) => {
-        if (!window.confirm("Are you sure you want to cancel this booking?")) return;
-        
-        setCancellingId(id); 
-        
-        try {
-            await API.put(`/bookings/${id}/cancel`);
-            toast.success("Cancelled successfully!");
-            setSelectedBooking(null);
-            await fetchBookings(); 
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Error cancelling');
-        } finally {
-            setCancellingId(null); 
-        }
-    };
-
-    const getPricing = (checkIn, checkOut, price) => {
-        const start = new Date(checkIn);
-        const end = new Date(checkOut);
-        const nights = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) || 1;
-        const perNight = Number(price) || 0;
-        return { nights, total: nights * perNight };
-    };
-
-    if (loading) return <div className="flex justify-center mt-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+    if (loading) return (
+        <div className="flex justify-center items-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-rule border-t-forest"></div>
+        </div>
+    );
 
     return (
-        <div className="max-w-6xl mx-auto mt-8 px-4 pb-20">
-            <h2 className="text-3xl font-black text-gray-900 mb-10">Your Trips</h2>
+        <div className="w-full px-6 lg:px-16 xl:px-24 py-16 lg:py-24">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {bookings.map((booking, index) => {
-                    // --- THE MASTER FIX: Calculate the true historical trip number ---
-                    const tripNumber = bookings.length - index;
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-4">
+                <div>
+                    <p className="text-[11px] font-label font-bold text-stone uppercase tracking-[0.15em] mb-2">Dashboard</p>
+                    <h2 className="font-serif text-ink text-4xl lg:text-5xl">Your Bookings</h2>
+                </div>
+                <button onClick={() => navigate('/')} className="mt-4 sm:mt-0 bg-forest text-white font-label text-[12px] font-bold uppercase tracking-[0.1em] px-6 py-3 rounded-lg hover:bg-forest/90 transition-colors shadow-card">
+                    + New Booking
+                </button>
+            </div>
+            <div className="h-px bg-rule mb-12"></div>
 
-                    return (
-                        <div key={booking.id} className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-xl transition-all">
-                            <div>
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        {/* Dynamic Trip Number applied here */}
-                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">
-                                            Trip #{tripNumber}
-                                        </p>
-                                        <h3 className="text-xl font-extrabold text-gray-900 truncate">
-                                            {booking.location || 'Premium Room'}
-                                        </h3>
-                                    </div>
-                                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest ${
-                                        booking.status === 'CANCELLED' ? 'bg-gray-100 text-gray-500' : 
-                                        booking.status === 'WAITLISTED' ? 'bg-orange-100 text-orange-700' : 
-                                        'bg-green-100 text-green-700'
-                                    }`}>
-                                        {booking.status}
+            {bookings.length === 0 ? (
+                <div className="py-24 text-center">
+                    <h3 className="font-serif text-ink text-3xl mb-3">Nothing here yet</h3>
+                    <p className="text-stone max-w-md mx-auto mb-10 leading-relaxed">You haven't made any reservations. Browse our rooms and book your stay.</p>
+                    <button onClick={() => navigate('/')} className="bg-forest text-white font-label text-[13px] font-bold uppercase tracking-[0.1em] px-10 py-3.5 rounded-lg hover:bg-forest/90 transition-colors shadow-card">
+                        Explore Rooms
+                    </button>
+                </div>
+            ) : (
+                <div className="space-y-0">
+                    {bookings.map((booking, i) => {
+                        const isWaitlisted = booking.status === 'WAITLISTED';
+                        const isCancelled = booking.status === 'CANCELLED';
+
+                        return (
+                            <div key={booking.id} className={`group border-b border-rule ${isCancelled ? 'opacity-50' : ''}`}>
+                                <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12 py-8 lg:py-10">
+
+                                    <span className="font-serif text-rule text-4xl lg:text-5xl w-16 flex-shrink-0 hidden lg:block">
+                                        {String(i + 1).padStart(2, '0')}
                                     </span>
-                                </div>
-                                <div className="bg-gray-50 rounded-2xl p-4 mb-6 text-sm font-bold text-gray-700">
-                                    {new Date(booking.check_in).toDateString()} - {new Date(booking.check_out).toDateString()}
-                                </div>
-                            </div>
 
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => { 
-                                        setSelectedBooking(booking); 
-                                        // Dynamic Trip Number applied to modal here
-                                        setSelectedBookingIndex(tripNumber); 
-                                    }}
-                                    className="flex-1 bg-gray-900 text-white font-bold py-3 rounded-xl text-xs hover:bg-black"
-                                >
-                                    View Details
-                                </button>
-                                {booking.status !== 'CANCELLED' && (
-                                    <button 
-                                        onClick={() => handleCancel(booking.id)} 
-                                        disabled={cancellingId === booking.id}
-                                        className={`flex-1 font-bold py-3 rounded-xl text-xs border transition-all ${
-                                            cancellingId === booking.id 
-                                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
-                                            : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-100'
-                                        }`}
-                                    >
-                                        {cancellingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
-                                    </button>
-                                )}
+                                    <div className="flex-grow min-w-0">
+                                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-2">
+                                            <h3 className="font-serif text-ink text-2xl lg:text-3xl">
+                                                Room {booking.room_number}
+                                            </h3>
+                                            <span className="text-[11px] font-label font-bold uppercase tracking-[0.15em] text-stone">
+                                                {booking.room_type}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-stone">
+                                            <span><span className="font-semibold text-ink">In:</span> {booking.check_in}</span>
+                                            <span><span className="font-semibold text-ink">Out:</span> {booking.check_out}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-6 flex-shrink-0">
+                                        <span className={`text-[10px] font-label font-bold uppercase tracking-[0.15em] px-3 py-1.5 rounded-md ${isWaitlisted ? 'bg-amber-50 text-amber-700' :
+                                            isCancelled ? 'bg-stone/10 text-stone' :
+                                                'bg-emerald-50 text-emerald-700'
+                                            }`}>
+                                            {booking.status}
+                                        </span>
+
+                                        {!isCancelled && (
+                                            <button
+                                                onClick={() => handleCancel(booking.id, isWaitlisted)}
+                                                className="font-label text-[12px] font-bold uppercase tracking-[0.1em] text-red-700 hover:text-red-900 transition-colors underline underline-offset-4"
+                                            >
+                                                Cancel
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );
