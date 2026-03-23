@@ -110,8 +110,70 @@ export default function Dashboard() {
                                     </div>
                                 </div>
                             </div>
-                        );
-                    })}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* --- THE FIXED VIEW DETAILS MODAL --- */}
+            {selectedBooking && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setSelectedBooking(null)}></div>
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg relative z-10 overflow-hidden shadow-2xl animate-modalUp">
+                        
+                        <div className="h-44 bg-gray-200 relative">
+                            <img src={selectedBooking.thumbnail_url || 'https://via.placeholder.com/400x200'} className="w-full h-full object-cover" alt="room" />
+                            {/* Adding the Trip Number badge to the modal image for consistency */}
+                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-4 py-1.5 rounded-full shadow-sm">
+                                <span className="text-xs font-black text-gray-900 uppercase tracking-widest">Trip #{selectedBookingIndex}</span>
+                            </div>
+                        </div>
+
+                        <div className="p-8">
+                            <div className="mb-6">
+                                <h3 className="text-3xl font-black text-gray-900">{selectedBooking.location}</h3>
+                                <p className="text-gray-500 font-bold text-lg">{selectedBooking.room_type} Room</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                                    <p className="text-[10px] font-black text-blue-400 uppercase">Room Number</p>
+                                    <p className="text-xl font-black text-blue-900">#{selectedBooking.room_number || 'N/A'}</p>
+                                </div>
+                                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase">Accommodated</p>
+                                    <p className="text-xl font-black text-gray-900">{selectedBooking.num_visitors} Guest(s)</p>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-gray-100 pt-6 space-y-3">
+                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Breakdown</h4>
+                                {(() => {
+                                    const { nights, total } = getPricing(selectedBooking.check_in, selectedBooking.check_out, selectedBooking.price_per_night);
+                                    return (
+                                        <>
+                                            <div className="flex justify-between font-bold text-gray-600">
+                                                <span>₹{selectedBooking.price_per_night || 0} x {nights} nights</span>
+                                                <span className="text-gray-900">₹{total}</span>
+                                            </div>
+                                            <div className="flex justify-between font-bold text-gray-600">
+                                                <span>Taxes & Service Fees</span>
+                                                <span className="text-green-600">Included</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pt-4 border-t border-dashed border-gray-200">
+                                                <span className="text-lg font-black text-gray-900">Total Payment</span>
+                                                <span className="text-2xl font-black text-blue-600">₹{total}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+
+                            <button onClick={() => setSelectedBooking(null)} className="w-full mt-8 py-4 bg-gray-100 text-gray-900 font-black rounded-2xl hover:bg-gray-200 transition-all">
+                                Close Itinerary
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

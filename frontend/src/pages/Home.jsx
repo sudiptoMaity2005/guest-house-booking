@@ -1,8 +1,6 @@
-import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
-const today = new Date().toISOString().split('T')[0];
 
 export default function Home() {
     const [rooms, setRooms] = useState([]);
@@ -206,6 +204,14 @@ export default function Home() {
                             </div>
                         </form>
                     </div>
+                    <h3 className="text-2xl font-bold text-gray-950 mb-2">No matching properties</h3>
+                    <p className="text-gray-600 font-medium">Try searching for something else, or clear your search.</p>
+                    <button 
+                        onClick={() => setSearchQuery('')}
+                        className="mt-6 px-6 py-2.5 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                        Clear Search
+                    </button>
                 </div>
             )}
         </div>
