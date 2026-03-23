@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import API from '../api/axios';
 
 export default function Home() {
@@ -43,6 +44,8 @@ export default function Home() {
         } catch (err) { toast.error(err.response?.data?.message || 'Error processing request'); }
         finally { setIsBooking(false); }
     };
+
+    const today = new Date().toISOString().split('T')[0];
 
     return (
         <div>
@@ -143,7 +146,19 @@ export default function Home() {
                 <div className="h-px bg-rule mb-12"></div>
 
                 <div className="space-y-0">
-                    {rooms.map((room, i) => (
+                    {rooms.length === 0 && searched ? (
+                        <div className="py-20 text-center">
+                            <h3 className="text-2xl font-bold text-ink mb-2">No matching properties</h3>
+                            <p className="text-stone font-medium mb-6">Try searching for something else, or clear your search.</p>
+                            <button 
+                                onClick={() => { setSearched(false); setSearchDates({ check_in: '', check_out: '' }); fetchAllRooms(); }}
+                                className="px-6 py-2.5 bg-forest text-white rounded-xl font-label text-[13px] font-bold uppercase tracking-[0.1em] hover:bg-forest/90 transition-colors shadow-card"
+                            >
+                                Clear Search
+                            </button>
+                        </div>
+                    ) : (
+                        rooms.map((room, i) => (
                         <div key={room.id} className="group border-b border-rule">
                             <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-12 py-8 lg:py-10">
                                 <span className="font-serif text-rule text-4xl lg:text-5xl w-16 flex-shrink-0 hidden lg:block">
@@ -176,7 +191,7 @@ export default function Home() {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )))}
                 </div>
             </section>
 
@@ -204,14 +219,6 @@ export default function Home() {
                             </div>
                         </form>
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-950 mb-2">No matching properties</h3>
-                    <p className="text-gray-600 font-medium">Try searching for something else, or clear your search.</p>
-                    <button 
-                        onClick={() => setSearchQuery('')}
-                        className="mt-6 px-6 py-2.5 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors"
-                    >
-                        Clear Search
-                    </button>
                 </div>
             )}
         </div>
